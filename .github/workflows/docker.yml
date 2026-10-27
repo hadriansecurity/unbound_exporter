@@ -1,0 +1,44 @@
+name: Build and Publish Image
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions: {}
+
+env:
+  IMAGE: registry.digitalocean.com/hadrian/${{ github.event.repository.name }}
+
+jobs:
+  docker-build-publish:
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Docker Builder
+        uses: useblacksmith/setup-docker-builder@ef12d5b165b596e3aa44ea8198d8fde563eab402 # v1
+
+      - name: Install doctl
+        if: github.ref == 'refs/heads/main'
+        uses: digitalocean/action-doctl@135ac0aa0eed4437d547c6f12c364d3006b42824 # v2.5.1
+        with:
+          token: ${{ secrets.DIGITALOCEAN_DOCKER_REPOSITORY }}
+
+      - name: Login to DigitalOcean
+        if: github.ref == 'refs/heads/main'
+        run: doctl registry login --expiry-seconds 900
+
+      - name: Build and push
+        uses: useblacksmith/build-push-action@30c71162f16ea2c27c3e21523255d209b8b538c1 # v2
+        with:
+          context: .
+          push: ${{ github.ref == 'refs/heads/main' }}
+          tags: ${{ env.IMAGE }}:${{ github.run_id }}, ${{ env.IMAGE }}:latest
